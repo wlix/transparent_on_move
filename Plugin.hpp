@@ -7,6 +7,7 @@
 //
 //---------------------------------------------------------------------------//
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
 //---------------------------------------------------------------------------//
@@ -121,7 +122,7 @@ struct PLUGIN_INFO_A
 #pragma pack(pop)
 
 // UNICODE マクロの定義の有無で使用する構造体を切り分ける
-#if defined(_UNICODE) || defined(UNICODE)
+#if defined(_WIN64) || defined(WIN64)
   using PLUGIN_COMMAND_INFO = PLUGIN_COMMAND_INFO_W;
   using PLUGIN_INFO         = PLUGIN_INFO_W;
 #else
@@ -143,9 +144,17 @@ extern "C"
     using TTBPLUGIN_SETMENUPROPERTY     = void          (WINAPI*)(DWORD_PTR hPlugin, INT32 CommandID, CHANGE_FLAG ChangeFlag, DISPMENU Flag);
     using TTBPLUGIN_GETALLPLUGININFO    = PLUGIN_INFO** (WINAPI*)();
     using TTBPLUGIN_FREEPLUGININFOARRAY = void          (WINAPI*)(PLUGIN_INFO** PluginInfoArray);
-    using TTBPLUGIN_SETTASKTRAYICON     = void          (WINAPI*)(HICON hIcon, LPCTSTR Tips);
+#if defined(_WIN64) || defined(WIN64)
+    using TTBPLUGIN_SETTASKTRAYICON     = void          (WINAPI*)(HICON hIcon, LPCWSTR Tips);
+#else
+    using TTBPLUGIN_SETTASKTRAYICON     = void          (WINAPI*)(HICON hIcon, LPCSTR Tips);
+#endif
     using TTBPLUGIN_WRITELOG            = void          (WINAPI*)(DWORD_PTR hPlugin, ERROR_LEVEL logLevel, LPCTSTR msg);
-    using TTBPLUGIN_EXECUTECOMMAND      = BOOL          (WINAPI*)(LPCTSTR PluginFilename, INT32 CmdID);
+#if defined(_WIN64) || defined(WIN64)
+    using TTBPLUGIN_EXECUTECOMMAND      = BOOL          (WINAPI*)(LPCWSTR PluginFilename, INT32 CmdID);
+#else
+    using TTBPLUGIN_EXECUTECOMMAND      = BOOL          (WINAPI*)(LPCSTR PluginFilename, INT32 CmdID);
+#endif
 }
 
 //---------------------------------------------------------------------------//
@@ -191,11 +200,19 @@ extern "C"
 extern "C"
 {
     // 必須
-    using TTBEVENT_INITPLUGININFO = PLUGIN_INFO* (WINAPI*)(LPTSTR PluginFilename);
+#if defined(_WIN64) || defined(WIN64)
+    using TTBEVENT_INITPLUGININFO = PLUGIN_INFO* (WINAPI*)(LPWSTR PluginFilename);
+#else
+    using TTBEVENT_INITPLUGININFO = PLUGIN_INFO* (WINAPI*)(LPSTR PluginFilename);
+#endif
     using TTBEVENT_FREEPLUGININFO = void         (WINAPI*)(PLUGIN_INFO* PLUGIN_INFO);
 
     // 任意
-    using TTBEVENT_INIT        = BOOL (WINAPI*)(LPTSTR PluginFilename, DWORD_PTR hPlugin);
+#if defined(_WIN64) || defined(WIN64)
+    using TTBEVENT_INIT        = BOOL (WINAPI*)(LPWSTR PluginFilename, DWORD_PTR hPlugin);
+#else
+    using TTBEVENT_INIT        = BOOL (WINAPI*)(LPSTR PluginFilename, DWORD_PTR hPlugin);
+#endif
     using TTBEVENT_UNLOAD      = void (WINAPI*)();
     using TTBEVENT_EXECUTE     = BOOL (WINAPI*)(INT32 CommandID, HWND hWnd);
     using TTBEVENT_WINDOWSHOOK = void (WINAPI*)(UINT Msg, WPARAM wParam, LPARAM lParam);
@@ -206,11 +223,19 @@ extern "C"
 extern "C"
 {
     // 必須
-    PLUGIN_INFO* WINAPI TTBEvent_InitPluginInfo(LPTSTR PluginFilename);
+#if defined(_WIN64) || defined(WIN64)
+    PLUGIN_INFO* WINAPI TTBEvent_InitPluginInfo(LPWSTR PluginFilename);
+#else
+    PLUGIN_INFO* WINAPI TTBEvent_InitPluginInfo(LPSTR PluginFilename);
+#endif
     void         WINAPI TTBEvent_FreePluginInfo(PLUGIN_INFO* PLUGIN_INFO);
 
     // 任意
-    BOOL WINAPI TTBEvent_Init       (LPTSTR PluginFilename, DWORD_PTR hPlugin);
+#if defined(_WIN64) || defined(WIN64)
+    BOOL WINAPI TTBEvent_Init       (LPWSTR PluginFilename, DWORD_PTR hPlugin);
+#else
+    BOOL WINAPI TTBEvent_Init       (LPSTR PluginFilename, DWORD_PTR hPlugin);
+#endif
     void WINAPI TTBEvent_Unload     ();
     BOOL WINAPI TTBEvent_Execute    (INT32 CommandID, HWND hWnd);
     void WINAPI TTBEvent_WindowsHook(UINT Msg, WPARAM wParam, LPARAM lParam);
@@ -223,7 +248,11 @@ extern "C"
 //---------------------------------------------------------------------------//
 
 // プラグインの名前
-extern LPCTSTR PLUGIN_NAME;
+#if defined(_WIN64) || defined(WIN64)
+extern LPWSTR PLUGIN_NAME;
+#else
+extern LPSTR  PLUGIN_NAME;
+#endif
 
 // コマンドの数
 extern DWORD COMMAND_COUNT;

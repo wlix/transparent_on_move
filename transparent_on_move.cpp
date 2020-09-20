@@ -29,10 +29,10 @@ HANDLE       g_hShared{ nullptr };
 SHARED_DATA *g_Shared { nullptr };
 
 // プラグインの名前
-#if defined(UNICODE) || defined(_UNICODE)
-LPCTSTR PLUGIN_NAME  { TEXT("Transparent On Move for Win10 x64") };
+#if defined(WIN64) || defined(_WIN64)
+LPWSTR PLUGIN_NAME  { L"Transparent On Move for Win10 x64" };
 #else
-LPCTSTR PLUGIN_NAME  { TEXT("Transparent On Move for Win10 x86") };
+LPSTR PLUGIN_NAME   {  "Transparent On Move for Win10 x86" };
 #endif
 
 // コマンドの数
@@ -41,7 +41,7 @@ DWORD COMMAND_COUNT { 0 };
 // プラグインの情報
 PLUGIN_INFO g_info = {
     0,                   // プラグインI/F要求バージョン
-    (LPTSTR)PLUGIN_NAME, // プラグインの名前（任意の文字が使用可能）
+    PLUGIN_NAME,         // プラグインの名前（任意の文字が使用可能）
     nullptr,             // プラグインのファイル名（相対パス）
     ptAlwaysLoad,        // プラグインのタイプ
     0,                   // バージョン
@@ -65,7 +65,6 @@ LONG_PTR GetWindowLongPtrX(HWND hWnd, int nIndex) {
     else
         return ::GetWindowLongPtrA(hWnd, nIndex);
 }
-
 
 LRESULT CallWindowProcX(WNDPROC lpPrevWndFunc, HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
@@ -168,7 +167,7 @@ BOOL WINAPI Init(void) {
         WriteLog(elError, TEXT("%s: フックに失敗しました"), g_info.Name);
         return FALSE;
     }
-    ::PostMessageA(HWND_BROADCAST, WM_NULL, 0, 0);
+    // ::PostMessageA(HWND_BROADCAST, WM_NULL, 0, 0);
 
     return TRUE;
 }
@@ -179,7 +178,7 @@ BOOL WINAPI Init(void) {
 void WINAPI Unload(void) {
     ::UnhookWindowsHookEx(g_hHook);
     g_hHook = NULL;
-    ::PostMessageA(HWND_BROADCAST, WM_NULL, 0, 0);
+    // ::PostMessageA(HWND_BROADCAST, WM_NULL, 0, 0);
     WriteLog(elInfo, TEXT("%s: successfully uninitialized"), g_info.Name);
 }
 

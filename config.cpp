@@ -34,7 +34,6 @@ void config::load_config() {
 
 	wchar_t inipath[MAX_PATH];
 	size_t len = ::GetModuleFileNameW(g_hInst, inipath, MAX_PATH);
-	WriteLog(elInfo, TEXT("length: %d"), len);
 
 	if (len < 4) {
 		return;
@@ -44,7 +43,7 @@ void config::load_config() {
 		inipath[len - 3] = L'i';
 	}
 
-#if defined(UNICODE) || defined(_UNICODE) || defined(_WIN64)
+#if defined(_WIN64) || defined(WIN64)
 	// g_Shared.x64_inipath = inipath;
 	::StringCchCopyW(g_Shared->x64_inipath, MAX_PATH, inipath);
 #else
@@ -53,7 +52,6 @@ void config::load_config() {
 #endif
 
 	g_Shared->alpha = ::GetPrivateProfileIntW(L"Setting", L"Alpha", 128, inipath);
-	WriteLog(elInfo, TEXT("alpha: %d"), g_Shared->alpha);
 	g_Shared->number_of_exclude = 0;
 	for (int i = 0; i < EXCLUDE_MAX; i++) {
 		wchar_t szKey[32];
@@ -61,7 +59,6 @@ void config::load_config() {
 		::GetPrivateProfileStringW(L"Setting", szKey, L"", g_Shared->exclude_path[g_Shared->number_of_exclude], MAX_PATH, inipath);
 		if (lstrcmpW(g_Shared->exclude_path[g_Shared->number_of_exclude], L"")) {
 			g_Shared->number_of_exclude++;
-			WriteLog(elInfo, TEXT("inipath: %s"), g_Shared->exclude_path[g_Shared->number_of_exclude]);
 		}
 	}
 }
