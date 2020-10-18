@@ -5,6 +5,7 @@
 //---------------------------------------------------------------------------//
 
 #include <shlwapi.h>
+#include <psapi.h>
 
 #include "Plugin.hpp"
 #include "MessageDef.hpp"
@@ -13,6 +14,7 @@
 #include "config.hpp"
 
 #pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "psapi.lib")
 
 //---------------------------------------------------------------------------//
 //
@@ -26,13 +28,21 @@ HHOOK  g_hHook  { nullptr };
 
 HINSTANCE    g_hInst  { nullptr };
 HANDLE       g_hShared{ nullptr };
-SHARED_DATA *g_Shared { nullptr };
+// CONFIG_DATA  g_Config { NULL };
+
+// 除外するウィンドウのパスの配列
+TCHAR exclude_path[EXCLUDE_MAX][MAX_PATH];
+// 除外するウィンドウのパスの個数
+int	number_of_exclude;
+// 透明度
+int	alpha;
+
 
 // プラグインの名前
 #if defined(WIN64) || defined(_WIN64)
-LPWSTR PLUGIN_NAME  { L"Transparent On Move for Win10 x64" };
+LPTSTR PLUGIN_NAME  { TEXT("Transparent On Move for Win10 x64") };
 #else
-LPSTR PLUGIN_NAME   {  "Transparent On Move for Win10 x86" };
+LPTSTR PLUGIN_NAME  { TEXT("Transparent On Move for Win10 x86") };
 #endif
 
 // コマンドの数
@@ -77,13 +87,13 @@ LRESULT CallWindowProcX(WNDPROC lpPrevWndFunc, HWND hWnd, UINT Msg, WPARAM wPara
 void SetWinLayer(HWND hwnd, BOOL Layer) {
     LONG_PTR exstyle = GetWindowLongPtrX(hwnd, GWL_EXSTYLE);
 
-    //透明化したいが、まだ半透明属性を持たない時
-    if (Layer && (!(exstyle & WS_EX_LAYERED))) {
-        SetWindowLongPtrX(hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED);
+    //透明化
+    if (Layer && !(exstyle & WS_EX_LAYERED)) {
+        SetWindowLongPtrX(hwnd, GWL_EXSTYLE, exstyle | WS_EX_LAYERED);        
     }
-    //透明化解除したいが、半透明属性を持っている時
+    //透明化解除
     else if (!Layer && (exstyle & WS_EX_LAYERED)) {
-        SetWindowLongPtrX(hwnd, GWL_EXSTYLE, exstyle ^ WS_EX_LAYERED);
+        SetWindowLongPtrX(hwnd, GWL_EXSTYLE, exstyle & ~WS_EX_LAYERED);
     }
 }
 
@@ -93,25 +103,22 @@ void SetWinLayer(HWND hwnd, BOOL Layer) {
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     static BOOL State = FALSE;
-    static BYTE old_alpha = FALSE;
-    WNDPROC OldProc = (WNDPROC)::GetPropA(hWnd, PROP_OLDPROC);
+    WNDPROC OldProc = (WNDPROC)::GetProp(hWnd, PROP_OLDPROC);
 
     switch (message) {
     case WM_MOVING:
         if (!State) {
             State = TRUE;
             SetWinLayer(hWnd, State);
-            ::GetLayeredWindowAttributes(hWnd, NULL, &old_alpha, NULL);
-            ::SetLayeredWindowAttributes(hWnd, 0, g_Shared->alpha, LWA_ALPHA);
+            ::SetLayeredWindowAttributes(hWnd, 0, alpha, LWA_ALPHA);
         }
         break;
 
     case WM_EXITSIZEMOVE:
         State = FALSE;
-        ::SetLayeredWindowAttributes(hWnd, 0, old_alpha, LWA_ALPHA);
         SetWinLayer(hWnd, State);
         SetWindowLongPtrX(hWnd, GWLP_WNDPROC, (LONG_PTR)OldProc);
-        ::RemovePropA(hWnd, PROP_OLDPROC);
+        ::RemoveProp(hWnd, PROP_OLDPROC);
 
         break;
     }
@@ -120,14 +127,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 }
 
 BOOL IsTargetWindow(HWND hWnd) {
+    HWND hParentWnd;
     LONG_PTR style = GetWindowLongPtrX(hWnd, GWL_STYLE);
     LONG_PTR exstyle = GetWindowLongPtrX(hWnd, GWL_EXSTYLE);
-    if (::GetAncestor(hWnd, GA_PARENT) == ::GetDesktopWindow()
+    if ((hParentWnd = ::GetAncestor(hWnd, GA_PARENT)) == ::GetDesktopWindow()
         && !(exstyle & WS_EX_TOOLWINDOW)
         && !(style & WS_POPUP)) {
         return TRUE;
     }
     else {
+        TCHAR szClass[128];
+        GetClassName(hParentWnd, szClass, 128);
+        if (!lstrcmp(szClass, TEXT("MDIClient"))) {
+            return TRUE;
+        }
         return FALSE;
     }
 }
@@ -138,18 +151,19 @@ BOOL IsTargetWindow(HWND hWnd) {
 LRESULT CALLBACK CallWndProc(int nCode, WPARAM wParam, LPARAM lParam) {
     if (nCode == HC_ACTION) {
         LPCWPSTRUCT pcw = (LPCWPSTRUCT)lParam;
+
         if (pcw->message == WM_ENTERSIZEMOVE && ::GetKeyState(VK_LBUTTON) < 0) {
             if (IsTargetWindow(pcw->hwnd)) {
-                wchar_t szBuff[MAX_PATH];
-                ::GetModuleFileNameW(NULL, szBuff, MAX_PATH);
-                for (int i = 0; i < g_Shared->number_of_exclude; i++) {
-                    if (lstrcmpiW(szBuff, g_Shared->exclude_path[i]) == 0) {
+                TCHAR szBuff[MAX_PATH];
+                ::GetModuleFileName(NULL, szBuff, MAX_PATH);
+                for (int i = 0; i < number_of_exclude; i++) {
+                    if (lstrcmpi(szBuff, exclude_path[i]) == 0) {
                         return ::CallNextHookEx(g_hHook, nCode, wParam, lParam);
                     }
                 }
-                if (GetPropA(pcw->hwnd, PROP_OLDPROC) == NULL) {
+                if (GetProp(pcw->hwnd, PROP_OLDPROC) == NULL) {
                     WNDPROC OldProc = (WNDPROC)SetWindowLongPtrX(pcw->hwnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
-                    SetPropA(pcw->hwnd, PROP_OLDPROC, (HANDLE)OldProc);
+                    SetProp(pcw->hwnd, PROP_OLDPROC, (HANDLE)OldProc);
                 }
             }
         }
@@ -159,7 +173,30 @@ LRESULT CALLBACK CallWndProc(int nCode, WPARAM wParam, LPARAM lParam) {
 
 // TTBEvent_Init() の内部実装
 BOOL WINAPI Init(void) {
-    config::get_instance().load_config();
+    // config::get_instance().load_config();
+
+    TCHAR inipath[MAX_PATH];
+    size_t len = ::GetModuleFileName(g_hInst, inipath, MAX_PATH);
+
+    if (len < 4) {
+        return FALSE;
+    }
+    else {
+        inipath[len - 1] = TEXT('i');
+        inipath[len - 2] = TEXT('n');
+        inipath[len - 3] = TEXT('i');
+    }
+
+    alpha = ::GetPrivateProfileInt(TEXT("Setting"), TEXT("Alpha"), 128, inipath);
+    number_of_exclude = 0;
+    for (int i = 0; i < EXCLUDE_MAX; i++) {
+        TCHAR szKey[32];
+        wsprintf(szKey, TEXT("ExcludePath%d"), i);
+        ::GetPrivateProfileString(TEXT("Setting"), szKey, TEXT(""), exclude_path[number_of_exclude], MAX_PATH, inipath);
+        if (lstrcmp(exclude_path[number_of_exclude], TEXT(""))) {
+            number_of_exclude++;
+        }
+    }
 
     g_hHook = ::SetWindowsHookEx(WH_CALLWNDPROC, CallWndProc, g_hInst, 0);
     if (!g_hHook) {
@@ -168,6 +205,7 @@ BOOL WINAPI Init(void) {
         return FALSE;
     }
     // ::PostMessageA(HWND_BROADCAST, WM_NULL, 0, 0);
+    WriteLog(elInfo, TEXT("%s: successfully initialized"), g_info.Name);
 
     return TRUE;
 }
@@ -243,30 +281,8 @@ void __cdecl operator delete[](void* p, size_t) // C++14
 
 // DLL エントリポイント
 BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD fdwReason, LPVOID lpvReserved) {
-    switch (fdwReason) {
-    case DLL_PROCESS_ATTACH:
+    if (fdwReason == DLL_PROCESS_ATTACH) {
         g_hInst = hInstance;
-        // 共有メモリを作成
-        g_hShared = ::CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(SHARED_DATA), FILEMAP_SHARED);
-        if (!g_hShared) {
-            WriteLog(elError, TEXT("%s: 共有メモリの作成に失敗しました"), g_info.Name);
-            return FALSE;
-        } else {
-            g_Shared = (SHARED_DATA *)::MapViewOfFile(g_hShared, FILE_MAP_WRITE, 0, 0, 0);
-            if (!g_Shared) {
-                WriteLog(elError, TEXT("%s: 共有メモリのマッピングに失敗しました"), g_info.Name);
-                return FALSE;
-            } else if (GetLastError() != ERROR_ALREADY_EXISTS) {
-                ::SecureZeroMemory((PVOID)g_Shared, sizeof(SHARED_DATA));
-            }
-        }
-        break;
-
-    case DLL_PROCESS_DETACH:
-        // 共有メモリをクローズ
-        ::UnmapViewOfFile(g_Shared);
-        ::CloseHandle(g_hShared);
-        break;
     }
     return TRUE;
 }

@@ -3,20 +3,26 @@
 #include "config.hpp"
 #include "Utility.hpp"
 
-LPCWSTR kMutexName = L"TransparentOnMoveMutex";
+LPCTSTR kMutexName = TEXT("TransparentOnMoveMutex");
 
 extern HINSTANCE    g_hInst;
 extern HANDLE       g_hShared;
-extern SHARED_DATA* g_Shared;
+// extern CONFIG_DATA  g_Config;
+// 除外するウィンドウのパスの配列
+extern TCHAR exclude_path[EXCLUDE_MAX][MAX_PATH];
+// 除外するウィンドウのパスの個数
+extern int	number_of_exclude;
+// 透明度
+extern int	alpha;
 
-BOOL WritePrivateProfileIntW(LPCWSTR lpAppName, LPCWSTR lpKeyName, int value, LPCWSTR lpFileName) {
-	wchar_t szbuff[32];
-	wsprintfW(szbuff, L"%d", value);
-	return ::WritePrivateProfileStringW(lpAppName, lpKeyName, szbuff, lpFileName);
+BOOL WritePrivateProfileInt(LPCTSTR lpAppName, LPCTSTR lpKeyName, int value, LPCTSTR lpFileName) {
+	TCHAR szbuff[32];
+	wsprintf(szbuff, TEXT("%d"), value);
+	return ::WritePrivateProfileString(lpAppName, lpKeyName, szbuff, lpFileName);
 }
 
 config::config() : m_hMutex(NULL) {
-	m_hMutex = ::CreateMutexW(nullptr, FALSE, kMutexName);
+	m_hMutex = ::CreateMutex(nullptr, FALSE, kMutexName);
 	_ASSERT(m_hMutex);
 }
 
@@ -32,33 +38,25 @@ config& config::get_instance() {
 void config::load_config() {
 	mutex_locker lock(m_hMutex);
 
-	wchar_t inipath[MAX_PATH];
-	size_t len = ::GetModuleFileNameW(g_hInst, inipath, MAX_PATH);
+	TCHAR inipath[MAX_PATH];
+	size_t len = ::GetModuleFileName(g_hInst, inipath, MAX_PATH);
 
 	if (len < 4) {
 		return;
 	} else {
-		inipath[len - 1] = L'i';
-		inipath[len - 2] = L'n';
-		inipath[len - 3] = L'i';
+		inipath[len - 1] = TEXT('i');
+		inipath[len - 2] = TEXT('n');
+		inipath[len - 3] = TEXT('i');
 	}
 
-#if defined(_WIN64) || defined(WIN64)
-	// g_Shared.x64_inipath = inipath;
-	::StringCchCopyW(g_Shared->x64_inipath, MAX_PATH, inipath);
-#else
-	// g_Shared.x86_inipath = inipath;
-	::StringCchCopyW(g_Shared->x86_inipath, MAX_PATH, inipath);
-#endif
-
-	g_Shared->alpha = ::GetPrivateProfileIntW(L"Setting", L"Alpha", 128, inipath);
-	g_Shared->number_of_exclude = 0;
+	alpha = ::GetPrivateProfileInt(TEXT("Setting"), TEXT("Alpha"), 128, inipath);
+	number_of_exclude = 0;
 	for (int i = 0; i < EXCLUDE_MAX; i++) {
-		wchar_t szKey[32];
-		wsprintfW(szKey, L"ExcludePath%d", i);
-		::GetPrivateProfileStringW(L"Setting", szKey, L"", g_Shared->exclude_path[g_Shared->number_of_exclude], MAX_PATH, inipath);
-		if (lstrcmpW(g_Shared->exclude_path[g_Shared->number_of_exclude], L"")) {
-			g_Shared->number_of_exclude++;
+		TCHAR szKey[32];
+		wsprintf(szKey, TEXT("ExcludePath%d"), i);
+		::GetPrivateProfileString(TEXT("Setting"), szKey, TEXT(""), exclude_path[number_of_exclude], MAX_PATH, inipath);
+		if (lstrcmp(exclude_path[number_of_exclude], TEXT(""))) {
+			number_of_exclude++;
 		}
 	}
 }

@@ -19,11 +19,10 @@
 //
 //---------------------------------------------------------------------------//
 
-#if defined(WIN64) || defined(_WIN64)
 // 文字列の格納領域を確保し、文字列をコピーして返す
-LPWSTR CopyString(LPCWSTR Src)
+LPTSTR CopyString(LPCTSTR Src)
 {
-    const auto len = 1 + ::lstrlenW(Src);
+    const auto len = 1 + ::lstrlen(Src);
 
     auto Dst = new TCHAR[len];
     if ( Dst != nullptr )
@@ -34,142 +33,16 @@ LPWSTR CopyString(LPCWSTR Src)
     return Dst;
 }
 
+//---------------------------------------------------------------------------//
+
 // 文字列を削除する
-void DeleteString(LPCWSTR Str)
+void DeleteString(LPCTSTR Str)
 {
     if (Str != nullptr)
     {
         delete[] Str;
     }
 }
-
-// バージョン情報を返す
-void GetVersion(LPWSTR Filename, DWORD* VersionMS, DWORD* VersionLS)
-{
-    if (VersionMS == nullptr || VersionLS == nullptr) { return; }
-
-    // DLL ファイルに埋め込まれたバージョンリソースのサイズを取得
-    DWORD VersionHandle;
-    const auto VersionSize = GetFileVersionInfoSizeW(Filename, &VersionHandle);
-    if (VersionSize == 0)
-    {
-        return;
-    }
-
-    // バージョンリソースを読み込む
-    const auto pVersionInfo = new BYTE[VersionSize];
-    if (pVersionInfo == nullptr)
-    {
-        return;
-    }
-    if (GetFileVersionInfoW(Filename, VersionHandle, VersionSize, pVersionInfo))
-    {
-        VS_FIXEDFILEINFO* FixedFileInfo;
-        UINT itemLen;
-
-        // バージョンリソースからファイルバージョンを取得
-        if (VerQueryValueW(pVersionInfo, L"\\", (void**)&FixedFileInfo, &itemLen))
-        {
-            *VersionMS = FixedFileInfo->dwFileVersionMS;
-            *VersionLS = FixedFileInfo->dwFileVersionLS;
-        }
-    }
-    delete[] pVersionInfo;
-}
-
-// ほかのプラグインのコマンドを実行する
-BOOL ExecutePluginCommand(LPCWSTR pluginName, INT32 CmdID)
-{
-  #if defined(_USRDLL)
-    // 本体が TTBPlugin_ExecuteCommand をエクスポートしていない場合は何もしない
-    if ( TTBPlugin_ExecuteCommand == nullptr ) { return TRUE; }
-  #endif
-
-    return TTBPlugin_ExecuteCommand(pluginName, CmdID);
-}
-
-#else
-LPSTR CopyString(LPCWSTR Src)
-{
-    const auto len = 1 + ::WideCharToMultiByte(CP_ACP, 0, (LPCWCH)Src, -1, nullptr, 0, nullptr, nullptr);
-    const auto Dst = new char[len];
-
-    if (Dst != nullptr)
-    {
-        ::WideCharToMultiByte(CP_ACP, 0, Src, -1, Dst, (INT32)len, nullptr, nullptr);
-    }
-
-    return Dst;
-}
-
-LPSTR CopyString(LPCSTR Src)
-{
-    const auto len = 1 + ::lstrlenA(Src);
-
-    auto Dst = new char[len];
-    if (Dst != nullptr)
-    {
-        ::StringCchCopyA(Dst, len, Src);
-    }
-
-    return Dst;
-}
-
-// 文字列を削除する
-void DeleteString(LPCSTR Str)
-{
-    if (Str != nullptr)
-    {
-        delete[] Str;
-    }
-}
-
-// バージョン情報を返す
-void GetVersion(LPSTR Filename, DWORD* VersionMS, DWORD* VersionLS)
-{
-    if (VersionMS == nullptr || VersionLS == nullptr) { return; }
-
-    // DLL ファイルに埋め込まれたバージョンリソースのサイズを取得
-    DWORD VersionHandle;
-    const auto VersionSize = GetFileVersionInfoSizeA(Filename, &VersionHandle);
-    if (VersionSize == 0)
-    {
-        return;
-    }
-
-    // バージョンリソースを読み込む
-    const auto pVersionInfo = new BYTE[VersionSize];
-    if (pVersionInfo == nullptr)
-    {
-        return;
-    }
-    if (GetFileVersionInfoA(Filename, VersionHandle, VersionSize, pVersionInfo))
-    {
-        VS_FIXEDFILEINFO* FixedFileInfo;
-        UINT itemLen;
-
-        // バージョンリソースからファイルバージョンを取得
-        if (VerQueryValueA(pVersionInfo, "\\", (void**)&FixedFileInfo, &itemLen))
-        {
-            *VersionMS = FixedFileInfo->dwFileVersionMS;
-            *VersionLS = FixedFileInfo->dwFileVersionLS;
-        }
-    }
-    delete[] pVersionInfo;
-}
-
-// ほかのプラグインのコマンドを実行する
-BOOL ExecutePluginCommand(LPCSTR pluginName, INT32 CmdID)
-{
-#if defined(_USRDLL)
-    // 本体が TTBPlugin_ExecuteCommand をエクスポートしていない場合は何もしない
-    if (TTBPlugin_ExecuteCommand == nullptr) { return TRUE; }
-#endif
-
-    return TTBPlugin_ExecuteCommand(pluginName, CmdID);
-}
-
-#endif
 
 //---------------------------------------------------------------------------//
 
@@ -231,6 +104,55 @@ void FreePluginInfo(PLUGIN_INFO* PluginInfo)
     DeleteString(PluginInfo->Name);
 
     delete PluginInfo;
+}
+
+//---------------------------------------------------------------------------//
+
+// バージョン情報を返す
+void GetVersion(LPTSTR Filename, DWORD* VersionMS, DWORD* VersionLS)
+{
+    if (VersionMS == nullptr || VersionLS == nullptr) { return; }
+
+    // DLL ファイルに埋め込まれたバージョンリソースのサイズを取得
+    DWORD VersionHandle;
+    const auto VersionSize = GetFileVersionInfoSize(Filename, &VersionHandle);
+    if (VersionSize == 0)
+    {
+        return;
+    }
+
+    // バージョンリソースを読み込む
+    const auto pVersionInfo = new BYTE[VersionSize];
+    if (pVersionInfo == nullptr)
+    {
+        return;
+    }
+    if (GetFileVersionInfo(Filename, VersionHandle, VersionSize, pVersionInfo))
+    {
+        VS_FIXEDFILEINFO* FixedFileInfo;
+        UINT itemLen;
+
+        // バージョンリソースからファイルバージョンを取得
+        if (VerQueryValue(pVersionInfo, TEXT("\\"), (void**)&FixedFileInfo, &itemLen))
+        {
+            *VersionMS = FixedFileInfo->dwFileVersionMS;
+            *VersionLS = FixedFileInfo->dwFileVersionLS;
+        }
+    }
+    delete[] pVersionInfo;
+}
+
+//---------------------------------------------------------------------------//
+
+// ほかのプラグインのコマンドを実行する
+BOOL ExecutePluginCommand(LPCTSTR pluginName, INT32 CmdID)
+{
+#if defined(_USRDLL)
+    // 本体が TTBPlugin_ExecuteCommand をエクスポートしていない場合は何もしない
+    if (TTBPlugin_ExecuteCommand == nullptr) { return TRUE; }
+#endif
+
+    return TTBPlugin_ExecuteCommand(pluginName, CmdID);
 }
 
 //---------------------------------------------------------------------------//

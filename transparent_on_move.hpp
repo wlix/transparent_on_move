@@ -2,24 +2,17 @@
 
 #include <SDKDDKVer.h>
 
-#define WIN32_LEAN_AND_MEAN
-
 #include <windows.h>
 #include <string>
 
 #define EXCLUDE_MAX     10
-#define PROP_OLDPROC    "TransparentOnMoveProcedure"
-#define FILEMAP_SHARED  L"TRANSPARENT_ON_MOVE"
+#define PROP_OLDPROC    TEXT("TransparentProcedure")
 
-typedef struct _SHARED_DATA {
+typedef struct _CONFIG_DATA {
     // 除外するウィンドウのパスの配列
-    wchar_t exclude_path[EXCLUDE_MAX][MAX_PATH];
+    TCHAR exclude_path[EXCLUDE_MAX][MAX_PATH];
     // 除外するウィンドウのパスの個数
     int	number_of_exclude;
     // 透明度
     int	alpha;
-    // iniのパス
-    wchar_t x86_inipath[MAX_PATH];
-    wchar_t x64_inipath[MAX_PATH];
-} SHARED_DATA;
-
+} CONFIG_DATA;
